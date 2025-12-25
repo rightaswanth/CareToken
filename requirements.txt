@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlmodel
+asyncpg
+alembic
+redis
+celery[redis]
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic-settings
+httpx
+twilio
+python-multipart
