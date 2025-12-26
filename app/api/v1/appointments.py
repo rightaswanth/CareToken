@@ -1,114 +1,69 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
-from datetime import datetime
 
 from app.db.session import get_session
-from app.db.models import Appointment, Doctor, Patient, Tenant
+from app.db.models import Appointment, Doctor
+from app.schemas.appointment import (
+    AppointmentCreatePatient, 
+    AppointmentCreateAdmin, 
+    AppointmentResponse
+)
+from app.services.appointment_service import AppointmentService
 
 router = APIRouter()
 
-from pydantic import BaseModel
-from typing import Optional
-from sqlmodel import func
+async def get_appointment_service(session: AsyncSession = Depends(get_session)) -> AppointmentService:
+    return AppointmentService(session)
 
-class PatientCreate(BaseModel):
-    name: str
-    phone: str
-    age: Optional[int] = None
-
-class AppointmentCreateRequest(BaseModel):
-    doctor_id: UUID
-    tenant_id: UUID
-    patient: PatientCreate
-    preferred_slot: datetime
-
-class AppointmentResponse(BaseModel):
-    token_number: int
-    estimated_wait_seconds: int
-    appointment_id: UUID
-
-@router.post("/", response_model=AppointmentResponse)
-async def create_appointment(
-    request: AppointmentCreateRequest,
-    session: AsyncSession = Depends(get_session)
-):
-    # 1. Validate Doctor
-    doctor = await session.get(Doctor, request.doctor_id)
+async def construct_response(appointment: Appointment, service: AppointmentService) -> AppointmentResponse:
+    doctor = await service.session.get(Doctor, appointment.doctor_id)
     if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-    
-    # 2. Check or Create Patient
-    # Check if patient exists by phone within the same tenant
-    stmt = select(Patient).where(
-        Patient.phone == request.patient.phone,
-        Patient.tenant_id == request.tenant_id
+        # Should not happen if integrity is maintained
+        raise HTTPException(status_code=500, detail="Doctor not found for appointment")
+        
+    wait_seconds = await service.calculate_wait_time(
+        doctor, 
+        appointment.scheduled_start.date(), 
+        appointment.token_number, 
+        appointment.is_emergency
     )
-    result = await session.execute(stmt)
-    patient = result.scalars().first()
     
-    if not patient:
-        patient = Patient(
-            tenant_id=request.tenant_id,
-            name=request.patient.name,
-            phone=request.patient.phone,
-            age=request.patient.age,
-            phone_verified=False # Assuming not verified for now
-        )
-        session.add(patient)
-        await session.commit()
-        await session.refresh(patient)
-    
-    # 3. Assign Token Number
-    # Get max token for this doctor on the preferred date
-    # Assuming preferred_slot is a datetime
-    appt_date = request.preferred_slot.date()
-    
-    # We need to query appointments for this doctor on this day to find max token
-    # Note: This is a simple implementation. In high concurrency, use a sequence or locked counter.
-    stmt = select(func.max(Appointment.token_number)).where(
-        Appointment.doctor_id == request.doctor_id,
-        func.date(Appointment.scheduled_start) == appt_date
-    )
-    result = await session.execute(stmt)
-    max_token = result.scalar() or 0
-    next_token = max_token + 1
-    
-    # 4. Create Appointment
-    appointment = Appointment(
-        tenant_id=request.tenant_id,
-        doctor_id=request.doctor_id,
-        patient_id=patient.id,
-        token_number=next_token,
-        state="created",
-        scheduled_start=request.preferred_slot,
-        is_phone_booking=False, # API booking
-        is_emergency=False,
-        is_late=False
-    )
-    session.add(appointment)
-    await session.commit()
-    await session.refresh(appointment)
-    
-    # 5. Calculate estimated wait time
-    # Simple estimate: (Token Number - 1) * Consult Duration (if starting from 0 wait)
-    # Or better: (Token Number - Current Serving Token) * Duration
-    # For now, let's use simple estimate assuming all previous tokens need to be served
-    estimated_wait_seconds = (next_token - 1) * doctor.consult_duration_minutes * 60
+    token_display = f"E{appointment.token_number}" if appointment.is_emergency else str(appointment.token_number)
     
     return AppointmentResponse(
-        token_number=next_token,
-        estimated_wait_seconds=estimated_wait_seconds,
-        appointment_id=appointment.id
+        id=appointment.id,
+        token_number=appointment.token_number,
+        token_display=token_display,
+        estimated_wait_seconds=wait_seconds,
+        state=appointment.state,
+        scheduled_start=appointment.scheduled_start,
+        is_emergency=appointment.is_emergency,
+        is_late=appointment.is_late
     )
 
-@router.get("/{appointment_id}", response_model=Appointment)
+@router.post("/patient", response_model=AppointmentResponse)
+async def create_appointment_patient(
+    request: AppointmentCreatePatient,
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    appointment = await service.create_appointment_patient(request)
+    return await construct_response(appointment, service)
+
+@router.post("/admin", response_model=AppointmentResponse)
+async def create_appointment_admin(
+    request: AppointmentCreateAdmin,
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    appointment = await service.create_appointment_admin(request)
+    return await construct_response(appointment, service)
+
+@router.get("/{appointment_id}", response_model=AppointmentResponse)
 async def read_appointment(
     appointment_id: UUID, 
-    session: AsyncSession = Depends(get_session)
+    service: AppointmentService = Depends(get_appointment_service)
 ):
-    appointment = await session.get(Appointment, appointment_id)
+    appointment = await service.session.get(Appointment, appointment_id)
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
-    return appointment
+    return await construct_response(appointment, service)

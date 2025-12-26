@@ -7,6 +7,7 @@ from .schedule import Schedule
 from .appointment import Appointment
 from .counter import Counter
 from .audit_log import AuditLog
+from .app_user import AppUser
 
 __all__ = [
     "SQLModel",
@@ -18,4 +19,5 @@ __all__ = [
     "Appointment",
     "Counter",
     "AuditLog",
+    "AppUser",
 ]
