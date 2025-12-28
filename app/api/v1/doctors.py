@@ -26,7 +26,9 @@ async def create_doctor(
         raise HTTPException(status_code=403, detail="Not authorized")
     service = DoctorService(session)
     # Convert schema to model
-    doctor = Doctor.model_validate(doctor_data)
+    doctor_dict = doctor_data.model_dump()
+    doctor_dict["tenant_id"] = tenant_id
+    doctor = Doctor.model_validate(doctor_dict)
     return await service.create_doctor(tenant_id, doctor)
 
 @router.get("/{tenant_id}/doctors", response_model=List[Doctor])
@@ -37,6 +39,16 @@ async def read_doctors(
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
+    service = DoctorService(session)
+    return await service.get_doctors(tenant_id)
+
+@router.get("/{tenant_id}/list", response_model=List[Doctor])
+async def read_doctors_public(
+    tenant_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    # Allow any authenticated user (admin or patient/app_user)
     service = DoctorService(session)
     return await service.get_doctors(tenant_id)
 

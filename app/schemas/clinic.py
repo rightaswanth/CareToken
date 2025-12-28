@@ -30,6 +30,7 @@ class AdminCredentials(BaseModel):
     password: str
 
 class ClinicCreatedResponse(BaseModel):
+    tenant_id: UUID
     clinic: ClinicResponse
     admin_credentials: AdminCredentials
 

@@ -42,6 +42,7 @@ class ClinicService:
         await self.session.commit()
 
         return ClinicCreatedResponse(
+            tenant_id=clinic.id,
             clinic=ClinicResponse.model_validate(clinic),
             admin_credentials=AdminCredentials(username=username, password=password)
         )

@@ -4,6 +4,7 @@ from uuid import UUID
 from datetime import datetime
 
 class DoctorBase(BaseModel):
+    name: str
     specialty: Optional[str] = None
     consult_duration_minutes: int = 10
     medical_degree: Optional[str] = None

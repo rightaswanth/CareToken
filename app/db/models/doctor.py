@@ -12,6 +12,7 @@ class Doctor(SQLModel, table=True):
     __tablename__ = "doctors"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     tenant_id: UUID = Field(foreign_key="tenants.id")
+    name: str
     specialty: Optional[str] = None
     medical_degree: Optional[str] = None
     registration_number: Optional[str] = None

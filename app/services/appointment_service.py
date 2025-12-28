@@ -60,7 +60,7 @@ class AppointmentService:
         if is_emergency:
             # Count emergency tokens ahead
             stmt = select(func.count(Appointment.id)).where(
-                Appointment.doctor_id == doctor.doctor_id if hasattr(doctor, 'doctor_id') else doctor.id, # Handle potential ID mismatch if doctor obj is different
+                Appointment.doctor_id == doctor.id,
                 func.date(Appointment.scheduled_start) == appt_date,
                 Appointment.is_emergency == True,
                 Appointment.token_number < token_number,
@@ -71,7 +71,7 @@ class AppointmentService:
         else:
             # Count normal tokens ahead
             stmt_normal = select(func.count(Appointment.id)).where(
-                Appointment.doctor_id == doctor.doctor_id if hasattr(doctor, 'doctor_id') else doctor.id,
+                Appointment.doctor_id == doctor.id,
                 func.date(Appointment.scheduled_start) == appt_date,
                 Appointment.is_emergency == False,
                 Appointment.token_number < token_number,
@@ -80,7 +80,7 @@ class AppointmentService:
             
             # Count all emergency tokens (assuming they take priority)
             stmt_emergency = select(func.count(Appointment.id)).where(
-                Appointment.doctor_id == doctor.doctor_id if hasattr(doctor, 'doctor_id') else doctor.id,
+                Appointment.doctor_id == doctor.id,
                 func.date(Appointment.scheduled_start) == appt_date,
                 Appointment.is_emergency == True,
                 Appointment.state.in_(active_states)
