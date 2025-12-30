@@ -78,6 +78,21 @@ class PatientService:
             data=token_payload, expires_delta=access_token_expires
         )
         
+        # Store in Redis
+        import json
+        from app.core.redis import redis_client
+        
+        token_data = {
+            "user_id": str(app_user.id),
+            "role": "patient",
+            "type": "patient"
+        }
+        await redis_client.set_token(
+            access_token, 
+            json.dumps(token_data), 
+            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+        
         return PatientLoginResponse(
             access_token=access_token,
             token_type="bearer",

@@ -10,7 +10,7 @@ from app.schemas.schedule import ScheduleCreate
 from app.schemas.doctor import DoctorCreate, WeeklySlotsResponse, CurrentTokenResponse
 from app.schemas.doctor import ConsultingStatusUpdate
 from app.services.doctor_service import DoctorService
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_or_patient
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -42,10 +42,14 @@ async def read_doctors(
     service = DoctorService(session)
     return await service.get_doctors(tenant_id)
 
+from app.api.deps import get_current_user, get_current_user_or_patient
+from typing import Union
+from app.db.models import AppUser
+
 @router.get("/{tenant_id}/list", response_model=List[Doctor])
 async def read_doctors_public(
     tenant_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: Union[User, AppUser] = Depends(get_current_user_or_patient),
     session: AsyncSession = Depends(get_session)
 ):
     # Allow any authenticated user (admin or patient/app_user)
