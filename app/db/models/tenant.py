@@ -14,6 +14,7 @@ class Tenant(SQLModel, table=True):
     __tablename__ = "tenants"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str
+    slug: str = Field(unique=True, index=True)
     city: str
     address: Optional[str] = None
     phone: Optional[str] = None

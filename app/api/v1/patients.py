@@ -1,28 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.db.session import get_session
-from app.db.models import Patient
+from app.schemas.patient import PatientOTPRequest, PatientOTPVerify, PatientLoginResponse
+from app.services.patient_service import PatientService
 
 router = APIRouter()
 
-class OTPRequest(BaseModel):
-    phone: str
-
-class OTPVerify(BaseModel):
-    phone: str
-    otp: str
+async def get_patient_service(session: AsyncSession = Depends(get_session)) -> PatientService:
+    return PatientService(session)
 
 @router.post("/request-otp")
-async def request_otp(payload: OTPRequest):
-    # Logic to generate and send OTP via Twilio would go here
-    return {"message": "OTP sent successfully", "phone": payload.phone}
+async def request_otp(
+    payload: PatientOTPRequest,
+    service: PatientService = Depends(get_patient_service)
+):
+    return await service.request_otp(payload)
 
-@router.post("/verify-otp")
-async def verify_otp(payload: OTPVerify, session: AsyncSession = Depends(get_session)):
-    # Logic to verify OTP
-    # If verified, find or create patient
-    # Return JWT token
-    return {"message": "OTP verified", "token": "fake-jwt-token"}
+@router.post("/verify-otp", response_model=PatientLoginResponse)
+async def verify_otp(
+    payload: PatientOTPVerify,
+    service: PatientService = Depends(get_patient_service)
+):
+    return await service.verify_otp(payload)

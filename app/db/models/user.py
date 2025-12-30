@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from .tenant import Tenant
-    from .doctor import Doctor
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -13,10 +12,10 @@ class User(SQLModel, table=True):
     tenant_id: Optional[UUID] = Field(default=None, foreign_key="tenants.id")
     role: str # admin, doctor, receptionist
     name: str
+    username: str = Field(unique=True, index=True)
     email: Optional[str] = None
     phone: Optional[str] = None
     password_hash: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     tenant: Optional["Tenant"] = Relationship(back_populates="users")
-    doctor_profile: Optional["Doctor"] = Relationship(back_populates="user")
