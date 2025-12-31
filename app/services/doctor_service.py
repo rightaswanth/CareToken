@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, func, select
 
 from app.db.models import Appointment, Doctor, Schedule, Tenant
-from app.schemas.schedule import ScheduleCreate
+from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
 from app.schemas.doctor import WeeklySlotsResponse, DailySlots, CurrentTokenResponse
 
 class DoctorService:
@@ -130,6 +130,20 @@ class DoctorService:
         await self.session.commit()
         await self.session.refresh(schedule)
         return {"message": "Schedule deactivated successfully"}
+
+    async def update_schedule(self, schedule_id: UUID, schedule_update: ScheduleUpdate) -> Schedule:
+        schedule = await self.session.get(Schedule, schedule_id)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        update_data = schedule_update.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(schedule, key, value)
+
+        self.session.add(schedule)
+        await self.session.commit()
+        await self.session.refresh(schedule)
+        return schedule
 
     async def get_current_token(self, doctor_id: UUID) -> CurrentTokenResponse:
         # Fetch doctor to get duration

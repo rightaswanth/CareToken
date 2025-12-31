@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, and_
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from fastapi import HTTPException
 
 from app.db.models.appointment import Appointment
@@ -109,6 +109,11 @@ class AppointmentService:
         appt_date = data.preferred_slot.date()
         next_token = await self.get_next_token(data.doctor_id, appt_date, is_emergency=False)
 
+        # Ensure scheduled_start is naive UTC
+        scheduled_start = data.preferred_slot
+        if scheduled_start.tzinfo is not None:
+            scheduled_start = scheduled_start.astimezone(timezone.utc).replace(tzinfo=None)
+
         # 4. Create Appointment
         appointment = Appointment(
             tenant_id=data.tenant_id,
@@ -116,7 +121,7 @@ class AppointmentService:
             patient_id=patient.id,
             token_number=next_token,
             state="created",
-            scheduled_start=data.preferred_slot,
+            scheduled_start=scheduled_start,
             is_phone_booking=False,
             is_emergency=False,
             is_late=False
@@ -140,6 +145,11 @@ class AppointmentService:
         appt_date = data.preferred_slot.date()
         next_token = await self.get_next_token(data.doctor_id, appt_date, is_emergency=data.is_emergency)
 
+        # Ensure scheduled_start is naive UTC
+        scheduled_start = data.preferred_slot
+        if scheduled_start.tzinfo is not None:
+            scheduled_start = scheduled_start.astimezone(timezone.utc).replace(tzinfo=None)
+
         # 4. Create Appointment
         appointment = Appointment(
             tenant_id=data.tenant_id,
@@ -147,7 +157,7 @@ class AppointmentService:
             patient_id=patient.id,
             token_number=next_token,
             state="created",
-            scheduled_start=data.preferred_slot,
+            scheduled_start=scheduled_start,
             is_phone_booking=data.is_phone_booking,
             is_emergency=data.is_emergency,
             is_late=data.is_late
