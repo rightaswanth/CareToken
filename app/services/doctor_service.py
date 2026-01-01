@@ -107,14 +107,11 @@ class DoctorService:
                 current_time = datetime.combine(current_date, schedule.start_time)
                 end_time = datetime.combine(current_date, schedule.end_time)
                 
-                while current_time + timedelta(minutes=doctor.consult_duration_minutes) <= end_time:
-                    slot_end = current_time + timedelta(minutes=doctor.consult_duration_minutes)
-                    slots.append(Slot(
-                        start_time=current_time.isoformat(),
-                        end_time=slot_end.isoformat(),
-                        schedule_id=schedule.id
-                    ))
-                    current_time = slot_end
+                slots.append(Slot(
+                    start_time=current_time.isoformat(),
+                    end_time=end_time.isoformat(),
+                    schedule_id=schedule.id
+                ))
             
             daily_slots_list.append(DailySlots(date=current_date.isoformat(), slots=slots))
 

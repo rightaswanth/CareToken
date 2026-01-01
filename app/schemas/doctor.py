@@ -6,7 +6,6 @@ from datetime import datetime
 class DoctorBase(BaseModel):
     name: str
     specialty: Optional[str] = None
-    consult_duration_minutes: int = 10
     medical_degree: Optional[str] = None
     registration_number: Optional[str] = None
     medical_council: Optional[str] = None
