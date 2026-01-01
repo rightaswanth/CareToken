@@ -23,9 +23,14 @@ class DoctorResponse(DoctorBase):
     class Config:
         from_attributes = True
 
+class Slot(BaseModel):
+    start_time: str
+    end_time: str
+    schedule_id: UUID
+
 class DailySlots(BaseModel):
     date: str
-    slots: List[str]
+    slots: List[Slot]
 
 class WeeklySlotsResponse(BaseModel):
     doctor_id: UUID

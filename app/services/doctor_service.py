@@ -8,7 +8,7 @@ from sqlmodel import delete, func, select
 
 from app.db.models import Appointment, Doctor, Schedule, Tenant
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
-from app.schemas.doctor import WeeklySlotsResponse, DailySlots, CurrentTokenResponse
+from app.schemas.doctor import WeeklySlotsResponse, DailySlots, CurrentTokenResponse, Slot
 
 class DoctorService:
     def __init__(self, session: AsyncSession):
@@ -108,8 +108,13 @@ class DoctorService:
                 end_time = datetime.combine(current_date, schedule.end_time)
                 
                 while current_time + timedelta(minutes=doctor.consult_duration_minutes) <= end_time:
-                    slots.append(current_time.isoformat())
-                    current_time += timedelta(minutes=doctor.consult_duration_minutes)
+                    slot_end = current_time + timedelta(minutes=doctor.consult_duration_minutes)
+                    slots.append(Slot(
+                        start_time=current_time.isoformat(),
+                        end_time=slot_end.isoformat(),
+                        schedule_id=schedule.id
+                    ))
+                    current_time = slot_end
             
             daily_slots_list.append(DailySlots(date=current_date.isoformat(), slots=slots))
 
