@@ -38,33 +38,18 @@ class DoctorService:
         if not doctor:
             raise HTTPException(status_code=404, detail="Doctor not found")
 
-        # Group input schedules by day
-        schedules_by_day = {}
-        for s in schedules:
-            if s.day_of_week not in schedules_by_day:
-                schedules_by_day[s.day_of_week] = []
-            schedules_by_day[s.day_of_week].append(s)
-
         new_schedules = []
         
-        for day, day_schedules in schedules_by_day.items():
-            # 1. Delete existing schedules for this day
-            stmt = delete(Schedule).where(
-                Schedule.doctor_id == doctor_id,
-                Schedule.day_of_week == day
+        # Simply add all new schedules (Append mode)
+        for schedule_data in schedules:
+            schedule = Schedule(
+                doctor_id=doctor_id,
+                day_of_week=schedule_data.day_of_week,
+                start_time=schedule_data.start_time,
+                end_time=schedule_data.end_time
             )
-            await self.session.execute(stmt)
-            
-            # 2. Add new schedules
-            for schedule_data in day_schedules:
-                schedule = Schedule(
-                    doctor_id=doctor_id,
-                    day_of_week=schedule_data.day_of_week,
-                    start_time=schedule_data.start_time,
-                    end_time=schedule_data.end_time
-                )
-                self.session.add(schedule)
-                new_schedules.append(schedule)
+            self.session.add(schedule)
+            new_schedules.append(schedule)
         
         await self.session.commit()
         for schedule in new_schedules:
