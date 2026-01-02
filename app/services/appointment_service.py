@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, func, and_
+from sqlalchemy import select, func, and_, or_, cast, Time
 from uuid import UUID
 from datetime import datetime, date, timezone
 from fastapi import HTTPException
@@ -35,6 +35,24 @@ class AppointmentService:
             self.session.add(patient)
             await self.session.commit()
             await self.session.refresh(patient)
+        else:
+            # Update patient details if they differ
+            updated = False
+            if patient.name != patient_data.name:
+                patient.name = patient_data.name
+                updated = True
+            if patient_data.age is not None and patient.age != patient_data.age:
+                patient.age = patient_data.age
+                updated = True
+            if patient_data.gender is not None and patient.gender != patient_data.gender:
+                patient.gender = patient_data.gender
+                updated = True
+            
+            if updated:
+                self.session.add(patient)
+                await self.session.commit()
+                await self.session.refresh(patient)
+                
         return patient
 
     async def get_next_token(self, doctor_id: UUID, appt_date: date) -> int:
@@ -168,6 +186,25 @@ class AppointmentService:
         return appointment
 
     async def get_doctor_appointments(self, doctor_id: UUID, date: date, status: list[str] | None = None) -> list[Appointment]:
+        # 1. Get active schedule for the day
+        day_of_week = date.weekday() # 0=Monday, 6=Sunday
+        # Adjust for DB (1=Monday, 7=Sunday) if needed, assuming 0-6 match for now or handled in model
+        # Actually model uses 1-7 usually? Let's check Schedule model or assume standard python
+        # Checking previous code, it seems we used python_day + 1 logic in setup_data
+        
+        # For now, just getting appointments. The slot logic is:
+        # If there's a slot selected (or current time implies one), we filter.
+        # But wait, the previous implementation of get_doctor_appointments didn't take a slot argument.
+        # It filtered by *current time* if I recall correctly?
+        # Let's look at the code.
+        
+        # Re-reading the file content from previous turns or just viewing it now would be safer.
+        # But I have the context.
+        
+        # The goal: Filter by slot OR is_emergency=True
+        
+        # Let's see the current implementation in the file first to be sure.
+        pass # Placeholder, I will use view_file first to be safe.
         # 1. Fetch schedules for the day
         # Note: DB stores day_of_week as 0=Sunday..6=Saturday
         # Python date.weekday() is 0=Monday..6=Sunday
@@ -219,28 +256,41 @@ class AppointmentService:
             # Let's pick the first slot for future dates.
             target_schedule = schedules[0]
 
-        # 3. Filter appointments by target slot
+        # 3. Filter appointments by target slot OR if emergency
         from sqlalchemy.orm import selectinload
+        from sqlalchemy import or_, and_
+        
         stmt = select(Appointment).options(selectinload(Appointment.patient)).where(
             Appointment.doctor_id == doctor_id,
             func.date(Appointment.scheduled_start) == date
         )
-        
-        # Filter by time range of the target slot
-        # We need to combine date with time to compare with scheduled_start (which is datetime)
-        start_dt = datetime.combine(date, target_schedule.start_time)
-        end_dt = datetime.combine(date, target_schedule.end_time)
-        
-        stmt = stmt.where(
-            Appointment.scheduled_start >= start_dt,
-            Appointment.scheduled_start <= end_dt
-        )
+
+        if target_schedule:
+            # Show appointments in this slot OR any emergency appointment for the day OR any hold appointment
+            # Note: We already filtered by date above
+            stmt = stmt.where(
+                or_(
+                    and_(
+                        cast(Appointment.scheduled_start, Time) >= target_schedule.start_time,
+                        cast(Appointment.scheduled_start, Time) <= target_schedule.end_time
+                    ),
+                    Appointment.is_emergency == True,
+                    Appointment.state == "hold"
+                )
+            )
+        else:
+            # No active slot found (e.g. before first slot, after last slot, or break)
+            # Show emergency and hold appointments
+            stmt = stmt.where(
+                or_(
+                    Appointment.is_emergency == True,
+                    Appointment.state == "hold"
+                )
+            )
         
         if status:
             stmt = stmt.where(Appointment.state.in_(status))
             
-        stmt = stmt.order_by(Appointment.token_number)
-        
         stmt = stmt.order_by(Appointment.token_number)
         
         result = await self.session.execute(stmt)
@@ -265,6 +315,21 @@ class AppointmentService:
             next_appt.state = "consulting"
             self.session.add(next_appt)
             
+        await self.session.commit()
+        await self.session.refresh(appointment)
+        return appointment
+
+    async def toggle_appointment_hold(self, appointment_id: UUID) -> Appointment:
+        appointment = await self.session.get(Appointment, appointment_id)
+        if not appointment:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+            
+        if appointment.state == "hold":
+            appointment.state = "created"
+        else:
+            appointment.state = "hold"
+            
+        self.session.add(appointment)
         await self.session.commit()
         await self.session.refresh(appointment)
         return appointment
