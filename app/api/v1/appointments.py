@@ -11,7 +11,8 @@ from app.schemas.appointment import (
     AppointmentCreatePatient, 
     AppointmentCreateAdmin, 
     AppointmentResponse,
-    AppointmentStatusUpdate
+    AppointmentStatusUpdate,
+    QueueResponse
 )
 from app.services.appointment_service import AppointmentService
 
@@ -72,6 +73,18 @@ async def update_appointment_status(
     appointment = await service.update_appointment_status(appointment_id, data.status, data.next_appointment_id)
     return await construct_response(appointment, service)
 
+@router.patch("/{appointment_id}/toggle-hold", response_model=AppointmentResponse)
+async def toggle_appointment_hold(
+    appointment_id: UUID,
+    current_user: User = Depends(get_current_user), # Admin only
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    appointment = await service.toggle_appointment_hold(appointment_id)
+    return await construct_response(appointment, service)
+
 @router.post("/admin", response_model=AppointmentResponse)
 async def create_appointment_admin(
     request: AppointmentCreateAdmin,
@@ -80,7 +93,7 @@ async def create_appointment_admin(
     appointment = await service.create_appointment_admin(request)
     return await construct_response(appointment, service)
 
-@router.get("/queue", response_model=List[AppointmentResponse])
+@router.get("/queue", response_model=QueueResponse)
 async def get_queue(
     doctor_id: UUID,
     date: date,
@@ -97,7 +110,9 @@ async def get_queue(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
         
-    responses = []
+    queue_list = []
+    hold_list = []
+    
     for appt in appointments:
         wait_seconds = await service.calculate_wait_time(
             doctor, 
@@ -108,7 +123,7 @@ async def get_queue(
         
         token_display = f"E{appt.token_number}" if appt.is_emergency else str(appt.token_number)
         
-        responses.append(AppointmentResponse(
+        response_item = AppointmentResponse(
             id=appt.id,
             token_number=appt.token_number,
             token_display=token_display,
@@ -119,9 +134,14 @@ async def get_queue(
             is_late=appt.is_late,
             patient_name=appt.patient.name if appt.patient else "Unknown",
             patient_age=appt.patient.age if appt.patient else None
-        ))
+        )
         
-    return responses
+        if appt.state == "hold":
+            hold_list.append(response_item)
+        else:
+            queue_list.append(response_item)
+        
+    return QueueResponse(queue=queue_list, on_hold=hold_list)
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
 async def read_appointment(

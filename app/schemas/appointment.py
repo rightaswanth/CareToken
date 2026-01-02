@@ -1,7 +1,7 @@
 from pydantic import BaseModel, root_validator
 from uuid import UUID
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 class PatientCreate(BaseModel):
     name: str
@@ -41,3 +41,7 @@ class AppointmentResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class QueueResponse(BaseModel):
+    queue: List[AppointmentResponse]
+    on_hold: List[AppointmentResponse]
