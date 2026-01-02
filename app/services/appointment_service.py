@@ -167,3 +167,79 @@ class AppointmentService:
         await self.session.refresh(appointment)
 
         return appointment
+
+    async def get_doctor_appointments(self, doctor_id: UUID, date: date, status: list[str] | None = None) -> list[Appointment]:
+        # 1. Fetch schedules for the day
+        # Note: DB stores day_of_week as 0=Sunday..6=Saturday
+        # Python date.weekday() is 0=Monday..6=Sunday
+        python_day = date.weekday()
+        db_day = 0 if python_day == 6 else python_day + 1
+        
+        from app.db.models.schedule import Schedule
+        stmt_schedule = select(Schedule).where(
+            Schedule.doctor_id == doctor_id,
+            Schedule.day_of_week == db_day,
+            Schedule.is_active == True
+        ).order_by(Schedule.start_time)
+        
+        schedule_result = await self.session.execute(stmt_schedule)
+        schedules = schedule_result.scalars().all()
+        
+        if not schedules:
+            return []
+            
+        # 2. Determine target slot
+        target_schedule = None
+        now = datetime.now()
+        current_time = now.time()
+        
+        # Only apply time logic if we are looking at today
+        if date == now.date():
+            for schedule in schedules:
+                if schedule.start_time <= current_time <= schedule.end_time:
+                    # Current time is within this slot
+                    target_schedule = schedule
+                    break
+                elif schedule.start_time > current_time:
+                    # This is the next upcoming slot
+                    target_schedule = schedule
+                    break
+            
+            # If no slot found (current time is after all slots), we might return None or empty
+            # The requirement says: "if the current time is over of the slot then list next slot . if not next slots list None"
+            if not target_schedule:
+                return []
+        else:
+            # For future dates, maybe return the first slot? Or all?
+            # The requirement specifically mentioned "check the current time".
+            # Let's assume for future dates we return the first slot as default, or all?
+            # "For listing queue first conside the current date."
+            # Let's default to the first slot for consistency if not specified, 
+            # or maybe we should return all if it's not today?
+            # Given the strict "queue" nature, usually it's about the active session.
+            # Let's pick the first slot for future dates.
+            target_schedule = schedules[0]
+
+        # 3. Filter appointments by target slot
+        stmt = select(Appointment).where(
+            Appointment.doctor_id == doctor_id,
+            func.date(Appointment.scheduled_start) == date
+        )
+        
+        # Filter by time range of the target slot
+        # We need to combine date with time to compare with scheduled_start (which is datetime)
+        start_dt = datetime.combine(date, target_schedule.start_time)
+        end_dt = datetime.combine(date, target_schedule.end_time)
+        
+        stmt = stmt.where(
+            Appointment.scheduled_start >= start_dt,
+            Appointment.scheduled_start <= end_dt
+        )
+        
+        if status:
+            stmt = stmt.where(Appointment.state.in_(status))
+            
+        stmt = stmt.order_by(Appointment.token_number)
+        
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List, Optional
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from app.db.session import get_session
-from app.db.models import Appointment, Doctor
+from app.db.models import Appointment, Doctor, User
+from app.api.deps import get_current_user
 from app.schemas.appointment import (
     AppointmentCreatePatient, 
     AppointmentCreateAdmin, 
@@ -57,6 +60,47 @@ async def create_appointment_admin(
 ):
     appointment = await service.create_appointment_admin(request)
     return await construct_response(appointment, service)
+
+@router.get("/queue", response_model=List[AppointmentResponse])
+async def get_queue(
+    doctor_id: UUID,
+    date: date,
+    status: Optional[List[str]] = Query(None),
+    current_user: User = Depends(get_current_user),
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    appointments = await service.get_doctor_appointments(doctor_id, date, status)
+    
+    doctor = await service.session.get(Doctor, doctor_id)
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+        
+    responses = []
+    for appt in appointments:
+        wait_seconds = await service.calculate_wait_time(
+            doctor, 
+            appt.scheduled_start.date(), 
+            appt.token_number, 
+            appt.is_emergency
+        )
+        
+        token_display = f"E{appt.token_number}" if appt.is_emergency else str(appt.token_number)
+        
+        responses.append(AppointmentResponse(
+            id=appt.id,
+            token_number=appt.token_number,
+            token_display=token_display,
+            estimated_wait_seconds=wait_seconds,
+            state=appt.state,
+            scheduled_start=appt.scheduled_start,
+            is_emergency=appt.is_emergency,
+            is_late=appt.is_late
+        ))
+        
+    return responses
 
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
 async def read_appointment(
