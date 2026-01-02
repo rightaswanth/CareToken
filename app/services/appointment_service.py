@@ -167,3 +167,17 @@ class AppointmentService:
         await self.session.refresh(appointment)
 
         return appointment
+
+    async def get_doctor_appointments(self, doctor_id: UUID, date: date, status: list[str] | None = None) -> list[Appointment]:
+        stmt = select(Appointment).where(
+            Appointment.doctor_id == doctor_id,
+            func.date(Appointment.scheduled_start) == date
+        )
+        
+        if status:
+            stmt = stmt.where(Appointment.state.in_(status))
+            
+        stmt = stmt.order_by(Appointment.token_number)
+        
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
