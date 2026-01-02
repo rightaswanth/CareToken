@@ -328,8 +328,45 @@ class AppointmentService:
             appointment.state = "created"
         else:
             appointment.state = "hold"
-            
         self.session.add(appointment)
         await self.session.commit()
         await self.session.refresh(appointment)
         return appointment
+
+    async def get_queue_status(self, doctor_id: UUID, date: date) -> dict:
+        # Fetch all appointments for the day
+        stmt = select(Appointment).where(
+            Appointment.doctor_id == doctor_id,
+            func.date(Appointment.scheduled_start) == date
+        ).order_by(Appointment.token_number)
+        
+        result = await self.session.execute(stmt)
+        appointments = result.scalars().all()
+        
+        last_completed = None
+        current = None
+        next_appt = None
+        waiting_count = 0
+        
+        completed_appts = [a for a in appointments if a.state == "completed"]
+        if completed_appts:
+            # Sort by ended_at desc to find last completed
+            completed_appts.sort(key=lambda x: x.ended_at or datetime.min, reverse=True)
+            last_completed = completed_appts[0]
+            
+        current_appts = [a for a in appointments if a.state == "consulting"]
+        if current_appts:
+            current = current_appts[0]
+            
+        waiting_appts = [a for a in appointments if a.state == "created"]
+        waiting_count = len(waiting_appts)
+        
+        if waiting_appts:
+            next_appt = waiting_appts[0]
+            
+        return {
+            "last_completed_token": f"E{last_completed.token_number}" if last_completed and last_completed.is_emergency else str(last_completed.token_number) if last_completed else None,
+            "current_token": f"E{current.token_number}" if current and current.is_emergency else str(current.token_number) if current else None,
+            "next_token": f"E{next_appt.token_number}" if next_appt and next_appt.is_emergency else str(next_appt.token_number) if next_appt else None,
+            "total_waiting": waiting_count
+        }
