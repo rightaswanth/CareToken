@@ -23,6 +23,10 @@ class AppointmentCreateAdmin(AppointmentCreateBase):
     is_phone_booking: bool = False
     is_late: bool = False
 
+class AppointmentStatusUpdate(BaseModel):
+    status: str
+    next_appointment_id: Optional[UUID] = None
+
 class AppointmentResponse(BaseModel):
     id: UUID
     token_number: int

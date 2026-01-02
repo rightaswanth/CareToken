@@ -37,11 +37,10 @@ class AppointmentService:
             await self.session.refresh(patient)
         return patient
 
-    async def get_next_token(self, doctor_id: UUID, appt_date: date, is_emergency: bool) -> int:
+    async def get_next_token(self, doctor_id: UUID, appt_date: date) -> int:
         stmt = select(func.max(Appointment.token_number)).where(
             Appointment.doctor_id == doctor_id,
-            func.date(Appointment.scheduled_start) == appt_date,
-            Appointment.is_emergency == is_emergency
+            func.date(Appointment.scheduled_start) == appt_date
         )
         result = await self.session.execute(stmt)
         max_token = result.scalar() or 0
@@ -107,7 +106,7 @@ class AppointmentService:
 
         # 3. Assign Token
         appt_date = data.preferred_slot.date()
-        next_token = await self.get_next_token(data.doctor_id, appt_date, is_emergency=False)
+        next_token = await self.get_next_token(data.doctor_id, appt_date)
 
         # Ensure scheduled_start is naive UTC
         scheduled_start = data.preferred_slot
@@ -143,7 +142,7 @@ class AppointmentService:
 
         # 3. Assign Token
         appt_date = data.preferred_slot.date()
-        next_token = await self.get_next_token(data.doctor_id, appt_date, is_emergency=data.is_emergency)
+        next_token = await self.get_next_token(data.doctor_id, appt_date)
 
         # Ensure scheduled_start is naive UTC
         scheduled_start = data.preferred_slot
@@ -242,5 +241,30 @@ class AppointmentService:
             
         stmt = stmt.order_by(Appointment.token_number)
         
+        stmt = stmt.order_by(Appointment.token_number)
+        
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def update_appointment_status(self, appointment_id: UUID, status: str, next_appointment_id: UUID | None = None) -> Appointment:
+        # 1. Get current appointment
+        appointment = await self.session.get(Appointment, appointment_id)
+        if not appointment:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+            
+        # 2. Update status
+        appointment.state = status
+        self.session.add(appointment)
+        
+        # 3. Update next appointment if provided
+        if next_appointment_id:
+            next_appt = await self.session.get(Appointment, next_appointment_id)
+            if not next_appt:
+                raise HTTPException(status_code=404, detail="Next appointment not found")
+            
+            next_appt.state = "consulting"
+            self.session.add(next_appt)
+            
+        await self.session.commit()
+        await self.session.refresh(appointment)
+        return appointment
