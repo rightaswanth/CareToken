@@ -42,6 +42,12 @@ class AppointmentResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class QueueStatusResponse(BaseModel):
+    last_completed_token: Optional[str] = None
+    current_token: Optional[str] = None
+    next_token: Optional[str] = None
+    total_waiting: int = 0
+
 class QueueResponse(BaseModel):
     queue: List[AppointmentResponse]
     on_hold: List[AppointmentResponse]

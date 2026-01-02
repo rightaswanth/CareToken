@@ -143,6 +143,19 @@ async def get_queue(
         
     return QueueResponse(queue=queue_list, on_hold=hold_list)
 
+@router.get("/queue-status", response_model=QueueStatusResponse)
+async def get_queue_status(
+    doctor_id: UUID,
+    date: date,
+    current_user: User = Depends(get_current_user),
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    status = await service.get_queue_status(doctor_id, date)
+    return QueueStatusResponse(**status)
+
 @router.get("/{appointment_id}", response_model=AppointmentResponse)
 async def read_appointment(
     appointment_id: UUID, 
