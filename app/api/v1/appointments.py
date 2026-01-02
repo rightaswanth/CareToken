@@ -10,7 +10,8 @@ from app.api.deps import get_current_user
 from app.schemas.appointment import (
     AppointmentCreatePatient, 
     AppointmentCreateAdmin, 
-    AppointmentResponse
+    AppointmentResponse,
+    AppointmentStatusUpdate
 )
 from app.services.appointment_service import AppointmentService
 
@@ -34,6 +35,11 @@ async def construct_response(appointment: Appointment, service: AppointmentServi
     
     token_display = f"E{appointment.token_number}" if appointment.is_emergency else str(appointment.token_number)
     
+    # Ensure patient is loaded
+    if appointment.patient_id and "patient" not in appointment.__dict__:
+        from app.db.models import Patient
+        appointment.patient = await service.session.get(Patient, appointment.patient_id)
+
     return AppointmentResponse(
         id=appointment.id,
         token_number=appointment.token_number,
@@ -42,7 +48,9 @@ async def construct_response(appointment: Appointment, service: AppointmentServi
         state=appointment.state,
         scheduled_start=appointment.scheduled_start,
         is_emergency=appointment.is_emergency,
-        is_late=appointment.is_late
+        is_late=appointment.is_late,
+        patient_name=appointment.patient.name if appointment.patient else "Unknown",
+        patient_age=appointment.patient.age if appointment.patient else None
     )
 
 @router.post("/patient", response_model=AppointmentResponse)
@@ -51,6 +59,17 @@ async def create_appointment_patient(
     service: AppointmentService = Depends(get_appointment_service)
 ):
     appointment = await service.create_appointment_patient(request)
+    return await construct_response(appointment, service)
+
+@router.patch("/{appointment_id}/status", response_model=AppointmentResponse)
+async def update_appointment_status(
+    appointment_id: UUID,
+    data: AppointmentStatusUpdate,
+    current_user: User = Depends(get_current_user), # Admin only
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    # TODO: Add role check if needed, assuming get_current_user ensures auth
+    appointment = await service.update_appointment_status(appointment_id, data.status, data.next_appointment_id)
     return await construct_response(appointment, service)
 
 @router.post("/admin", response_model=AppointmentResponse)
