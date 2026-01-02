@@ -12,7 +12,8 @@ from app.schemas.appointment import (
     AppointmentCreateAdmin, 
     AppointmentResponse,
     AppointmentStatusUpdate,
-    QueueResponse
+    QueueResponse,
+    QueueStatusResponse
 )
 from app.services.appointment_service import AppointmentService
 
