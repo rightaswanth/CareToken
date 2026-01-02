@@ -221,7 +221,8 @@ class AppointmentService:
             target_schedule = schedules[0]
 
         # 3. Filter appointments by target slot
-        stmt = select(Appointment).where(
+        from sqlalchemy.orm import selectinload
+        stmt = select(Appointment).options(selectinload(Appointment.patient)).where(
             Appointment.doctor_id == doctor_id,
             func.date(Appointment.scheduled_start) == date
         )

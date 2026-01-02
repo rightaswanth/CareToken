@@ -97,7 +97,9 @@ async def get_queue(
             state=appt.state,
             scheduled_start=appt.scheduled_start,
             is_emergency=appt.is_emergency,
-            is_late=appt.is_late
+            is_late=appt.is_late,
+            patient_name=appt.patient.name if appt.patient else "Unknown",
+            patient_age=appt.patient.age if appt.patient else None
         ))
         
     return responses

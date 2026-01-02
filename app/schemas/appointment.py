@@ -32,6 +32,8 @@ class AppointmentResponse(BaseModel):
     scheduled_start: Optional[datetime]
     is_emergency: bool
     is_late: bool
+    patient_name: Optional[str] = None
+    patient_age: Optional[int] = None
     
     class Config:
         from_attributes = True
