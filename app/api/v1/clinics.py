@@ -43,6 +43,7 @@ async def get_cities():
     return ["Kochi", "Bangalore", "Mumbai", "Delhi", "Chennai", "Hyderabad", "Trivandrum", "Calicut"]
 
 @router.get("/{clinic_id}", response_model=Tenant)
+async def read_clinic(clinic_id: UUID, session: AsyncSession = Depends(get_session)):
     service = ClinicService(session)
     return await service.get_clinic(clinic_id)
 

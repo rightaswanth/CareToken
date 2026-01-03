@@ -9,6 +9,10 @@ class ClinicCreate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
 
+class AdminCredentials(BaseModel):
+    username: str
+    password: str
+
 class ClinicCreatedResponse(BaseModel):
     id: UUID
     name: str
