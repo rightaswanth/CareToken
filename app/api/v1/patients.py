@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from typing import Optional
 from app.db.session import get_session
-from app.schemas.patient import PatientOTPRequest, PatientOTPVerify, PatientLoginResponse
+from app.db.models import User
+from app.api.deps import get_current_user
+from app.schemas.patient import PatientOTPRequest, PatientOTPVerify, PatientLoginResponse, PatientListResponse
 from app.services.patient_service import PatientService
 
 router = APIRouter()
@@ -23,3 +26,26 @@ async def verify_otp(
     service: PatientService = Depends(get_patient_service)
 ):
     return await service.verify_otp(payload)
+
+@router.get("/recent", response_model=PatientListResponse)
+async def get_recent_patients(
+    limit: int = 10,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    service: PatientService = Depends(get_patient_service)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return await service.get_recent_patients(limit, offset)
+
+@router.get("/", response_model=PatientListResponse)
+async def get_all_patients(
+    search: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    service: PatientService = Depends(get_patient_service)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return await service.get_all_patients(search, limit, offset)

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, func, or_
 import random
 
 from app.db.models import Patient, Tenant, AppUser
@@ -99,3 +99,47 @@ class PatientService:
             patient_id=app_user.id, # Returning AppUser ID as patient_id for now
             name="App User" # Placeholder
         )
+
+    async def get_recent_patients(self, limit: int = 10, offset: int = 0) -> dict:
+        stmt = select(Patient).order_by(Patient.created_at.desc()).offset(offset).limit(limit)
+        result = await self.session.execute(stmt)
+        patients = result.scalars().all()
+        
+        # Get total count
+        count_stmt = select(func.count()).select_from(Patient)
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar()
+        
+        return {
+            "items": patients,
+            "total": total,
+            "page": offset // limit + 1 if limit > 0 else 1,
+            "size": limit
+        }
+
+    async def get_all_patients(self, search: str = None, limit: int = 10, offset: int = 0) -> dict:
+        stmt = select(Patient)
+        
+        if search:
+            stmt = stmt.where(
+                or_(
+                    Patient.name.ilike(f"%{search}%"),
+                    Patient.phone.ilike(f"%{search}%")
+                )
+            )
+            
+        # Get total count before pagination
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar()
+            
+        stmt = stmt.order_by(Patient.name.asc()).offset(offset).limit(limit)
+        result = await self.session.execute(stmt)
+        patients = result.scalars().all()
+        
+        return {
+            "items": patients,
+            "total": total,
+            "page": offset // limit + 1 if limit > 0 else 1,
+            "size": limit
+        }
