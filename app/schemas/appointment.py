@@ -40,6 +40,7 @@ class AppointmentResponse(BaseModel):
     patient_age: Optional[int] = None
     patient_phone: Optional[str] = None
     patient_gender: Optional[str] = None
+    slot_label: Optional[str] = None
     
     class Config:
         from_attributes = True

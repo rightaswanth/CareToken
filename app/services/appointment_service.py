@@ -36,22 +36,8 @@ class AppointmentService:
             await self.session.commit()
             await self.session.refresh(patient)
         else:
-            # Update patient details if they differ
-            updated = False
-            if patient.name != patient_data.name:
-                patient.name = patient_data.name
-                updated = True
-            if patient_data.age is not None and patient.age != patient_data.age:
-                patient.age = patient_data.age
-                updated = True
-            if patient_data.gender is not None and patient.gender != patient_data.gender:
-                patient.gender = patient_data.gender
-                updated = True
-            
-            if updated:
-                self.session.add(patient)
-                await self.session.commit()
-                await self.session.refresh(patient)
+            # Do not update patient details if they differ, as per requirement
+            pass
                 
         return patient
 
@@ -374,6 +360,10 @@ class AppointmentService:
     async def get_appointments_by_date(self, doctor_id: UUID, date: date) -> list[dict]:
         from sqlalchemy.orm import selectinload
         
+        # Fetch doctor to get duration
+        doctor = await self.session.get(Doctor, doctor_id)
+        duration_minutes = doctor.consult_duration_minutes if doctor else 15
+
         # Fetch appointments for the doctor and date
         stmt = select(Appointment).options(
             selectinload(Appointment.patient)
@@ -390,7 +380,14 @@ class AppointmentService:
             token_display = str(appt.token_number)
             if appt.is_emergency:
                 token_display = f"E{appt.token_number}"
-                
+            
+            # Calculate slot label
+            slot_label = None
+            if appt.scheduled_start:
+                start_time = appt.scheduled_start
+                end_time = start_time + timedelta(minutes=duration_minutes)
+                slot_label = f"{start_time.strftime('%I:%M %p')} - {end_time.strftime('%I:%M %p')}"
+
             response.append({
                 "id": appt.id,
                 "token_number": appt.token_number,
@@ -403,7 +400,8 @@ class AppointmentService:
                 "patient_name": appt.patient.name,
                 "patient_age": appt.patient.age,
                 "patient_phone": appt.patient.phone,
-                "patient_gender": appt.patient.gender
+                "patient_gender": appt.patient.gender,
+                "slot_label": slot_label
             })
             
         return response
