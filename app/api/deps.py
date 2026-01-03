@@ -83,7 +83,7 @@ async def get_current_patient(
         raise credentials_exception
     return user
 
-from typing import Union
+from typing import Union, Optional
 
 async def get_current_user_or_patient(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -123,4 +123,42 @@ async def get_current_user_or_patient(
 
     if user is None:
         raise credentials_exception
+    return user
+
+security_optional = HTTPBearer(auto_error=False)
+
+async def get_current_user_or_patient_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+    session: AsyncSession = Depends(get_session)
+) -> Union[User, AppUser, None]:
+    if not credentials:
+        return None
+        
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+    except (PyJWTError, ValidationError):
+        return None
+    
+    # Verify with Redis
+    from app.core.redis import redis_client
+    import json
+    
+    token_data_json = await redis_client.get_token(token)
+    if not token_data_json:
+        return None
+        
+    token_data = json.loads(token_data_json)
+    user_type = token_data.get("type")
+    
+    if user_type == "admin":
+        user = await session.get(User, user_id)
+    elif user_type == "patient":
+        user = await session.get(AppUser, user_id)
+    else:
+        return None
+
     return user

@@ -370,3 +370,40 @@ class AppointmentService:
             "next_token": f"E{next_appt.token_number}" if next_appt and next_appt.is_emergency else str(next_appt.token_number) if next_appt else None,
             "total_waiting": waiting_count
         }
+
+    async def get_appointments_by_date(self, doctor_id: UUID, date: date) -> list[dict]:
+        from sqlalchemy.orm import selectinload
+        
+        # Fetch appointments for the doctor and date
+        stmt = select(Appointment).options(
+            selectinload(Appointment.patient)
+        ).where(
+            Appointment.doctor_id == doctor_id,
+            func.date(Appointment.scheduled_start) == date
+        ).order_by(Appointment.token_number)
+        
+        result = await self.session.execute(stmt)
+        appointments = result.scalars().all()
+        
+        response = []
+        for appt in appointments:
+            token_display = str(appt.token_number)
+            if appt.is_emergency:
+                token_display = f"E{appt.token_number}"
+                
+            response.append({
+                "id": appt.id,
+                "token_number": appt.token_number,
+                "token_display": token_display,
+                "estimated_wait_seconds": 0, # Not needed for this view
+                "state": appt.state,
+                "scheduled_start": appt.scheduled_start,
+                "is_emergency": appt.is_emergency,
+                "is_late": appt.is_late,
+                "patient_name": appt.patient.name,
+                "patient_age": appt.patient.age,
+                "patient_phone": appt.patient.phone,
+                "patient_gender": appt.patient.gender
+            })
+            
+        return response
