@@ -199,7 +199,7 @@ class PatientService:
                 "patient_name": appt.patient.name,
                 "patient_age": appt.patient.age,
                 "doctor_name": appt.doctor.name,
-                "doctor_specialization": appt.doctor.specialization,
+                "doctor_specialization": appt.doctor.specialty,
                 "clinic_name": "Clinic" # Placeholder or fetch from Tenant
             })
             
@@ -251,7 +251,7 @@ class PatientService:
                 "patient_name": appt.patient.name,
                 "patient_age": appt.patient.age,
                 "doctor_name": appt.doctor.name,
-                "doctor_specialization": appt.doctor.specialization,
+                "doctor_specialization": appt.doctor.specialty,
                 "clinic_name": "Clinic" 
             })
             
