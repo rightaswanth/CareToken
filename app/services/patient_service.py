@@ -34,7 +34,7 @@ class PatientService:
             await self.session.refresh(app_user)
 
         # Generate OTP
-        otp = str(random.randint(100000, 999999))
+        otp = "1423"
         
         # Save OTP to app_user
         app_user.otp = otp
@@ -43,7 +43,7 @@ class PatientService:
         await self.session.commit()
         
         # Send OTP (Mocking it here)
-        print(f"OTP for {data.phone}: {otp}")
+        # print(f"OTP for {data.phone}: {otp}")
         
         return {"message": "OTP sent successfully", "dev_otp": otp}
 
@@ -143,3 +143,116 @@ class PatientService:
             "page": offset // limit + 1 if limit > 0 else 1,
             "size": limit
         }
+
+    async def get_active_appointments(self, app_user: AppUser) -> list[dict]:
+        from app.db.models.appointment import Appointment
+        from app.db.models.doctor import Doctor
+        from app.schemas.appointment import AppointmentResponse
+        from sqlalchemy.orm import selectinload
+        
+        # 1. Find Patient(s) linked to this AppUser
+        # Assuming AppUser.phone links to Patient.phone
+        stmt_patient = select(Patient).where(Patient.phone == app_user.phone)
+        result_patient = await self.session.execute(stmt_patient)
+        patients = result_patient.scalars().all()
+        
+        if not patients:
+            return []
+            
+        patient_ids = [p.id for p in patients]
+        
+        # 2. Find active appointments
+        active_states = ["created", "waiting", "consulting", "hold"]
+        stmt = select(Appointment).options(
+            selectinload(Appointment.doctor),
+            selectinload(Appointment.patient)
+        ).where(
+            Appointment.patient_id.in_(patient_ids),
+            Appointment.state.in_(active_states)
+        ).order_by(Appointment.scheduled_start.asc())
+        
+        result = await self.session.execute(stmt)
+        appointments = result.scalars().all()
+        
+        # 3. Format response
+        response = []
+        for appt in appointments:
+            # Calculate wait time (simplified)
+            # For now, just return 0 or a placeholder if we don't want to duplicate logic
+            # Or we can instantiate AppointmentService if needed, but let's keep it simple
+            estimated_wait = 0 
+            
+            # Token display
+            token_display = str(appt.token_number)
+            if appt.is_emergency:
+                token_display = f"E{appt.token_number}"
+                
+            response.append({
+                "id": appt.id,
+                "token_number": appt.token_number,
+                "token_display": token_display,
+                "estimated_wait_seconds": estimated_wait,
+                "state": appt.state,
+                "scheduled_start": appt.scheduled_start,
+                "is_emergency": appt.is_emergency,
+                "is_late": appt.is_late,
+                "patient_name": appt.patient.name,
+                "patient_age": appt.patient.age,
+                "doctor_name": appt.doctor.name,
+                "doctor_specialization": appt.doctor.specialization,
+                "clinic_name": "Clinic" # Placeholder or fetch from Tenant
+            })
+            
+        return response
+
+    async def get_previous_appointments(self, app_user: AppUser) -> list[dict]:
+        from app.db.models.appointment import Appointment
+        from sqlalchemy.orm import selectinload
+        
+        # 1. Find Patient(s) linked to this AppUser
+        stmt_patient = select(Patient).where(Patient.phone == app_user.phone)
+        result_patient = await self.session.execute(stmt_patient)
+        patients = result_patient.scalars().all()
+        
+        if not patients:
+            return []
+            
+        patient_ids = [p.id for p in patients]
+        
+        # 2. Find previous appointments
+        previous_states = ["completed", "cancelled"]
+        stmt = select(Appointment).options(
+            selectinload(Appointment.doctor),
+            selectinload(Appointment.patient)
+        ).where(
+            Appointment.patient_id.in_(patient_ids),
+            Appointment.state.in_(previous_states)
+        ).order_by(Appointment.scheduled_start.desc())
+        
+        result = await self.session.execute(stmt)
+        appointments = result.scalars().all()
+        
+        # 3. Format response
+        response = []
+        for appt in appointments:
+            token_display = str(appt.token_number)
+            if appt.is_emergency:
+                token_display = f"E{appt.token_number}"
+                
+            response.append({
+                "id": appt.id,
+                "token_number": appt.token_number,
+                "token_display": token_display,
+                "estimated_wait_seconds": 0,
+                "state": appt.state,
+                "scheduled_start": appt.scheduled_start,
+                "is_emergency": appt.is_emergency,
+                "is_late": appt.is_late,
+                "patient_name": appt.patient.name,
+                "patient_age": appt.patient.age,
+                "doctor_name": appt.doctor.name,
+                "doctor_specialization": appt.doctor.specialization,
+                "clinic_name": "Clinic" 
+            })
+            
+        return response

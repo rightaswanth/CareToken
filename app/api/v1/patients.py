@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db.session import get_session
 from app.db.models import User
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_patient
 from app.schemas.patient import PatientOTPRequest, PatientOTPVerify, PatientLoginResponse, PatientListResponse
 from app.services.patient_service import PatientService
 
@@ -49,3 +49,17 @@ async def get_all_patients(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     return await service.get_all_patients(search, limit, offset)
+
+@router.get("/appointments/active", response_model=list[dict])
+async def get_active_appointments(
+    current_user: User = Depends(get_current_patient),
+    service: PatientService = Depends(get_patient_service)
+):
+    return await service.get_active_appointments(current_user)
+
+@router.get("/appointments/previous", response_model=list[dict])
+async def get_previous_appointments(
+    current_user: User = Depends(get_current_patient),
+    service: PatientService = Depends(get_patient_service)
+):
+    return await service.get_previous_appointments(current_user)
