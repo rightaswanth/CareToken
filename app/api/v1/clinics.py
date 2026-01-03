@@ -43,6 +43,19 @@ async def get_cities():
     return ["Kochi", "Bangalore", "Mumbai", "Delhi", "Chennai", "Hyderabad", "Trivandrum", "Calicut"]
 
 @router.get("/{clinic_id}", response_model=Tenant)
-async def read_clinic(clinic_id: UUID, session: AsyncSession = Depends(get_session)):
     service = ClinicService(session)
     return await service.get_clinic(clinic_id)
+
+from app.schemas.clinic import DashboardStatsResponse
+
+@router.get("/{tenant_id}/dashboard", response_model=DashboardStatsResponse)
+async def get_dashboard_stats(
+    tenant_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    service = ClinicService(session)
+    return await service.get_dashboard_stats(tenant_id)
