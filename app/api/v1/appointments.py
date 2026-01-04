@@ -6,7 +6,7 @@ from uuid import UUID
 
 from app.db.session import get_session
 from app.db.models import Appointment, Doctor, User
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_or_patient
 from app.schemas.appointment import (
     AppointmentCreatePatient, 
     AppointmentCreateAdmin, 
@@ -99,11 +99,11 @@ async def get_queue(
     doctor_id: UUID,
     date: date,
     status: Optional[List[str]] = Query(None),
-    current_user: User = Depends(get_current_user),
+    status: Optional[List[str]] = Query(None),
+    current_user: User | object = Depends(get_current_user_or_patient),
     service: AppointmentService = Depends(get_appointment_service)
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
+    is_admin = getattr(current_user, "role", None) == "admin"
         
     appointments = await service.get_doctor_appointments(doctor_id, date, status)
     
@@ -133,8 +133,8 @@ async def get_queue(
             scheduled_start=appt.scheduled_start,
             is_emergency=appt.is_emergency,
             is_late=appt.is_late,
-            patient_name=appt.patient.name if appt.patient else "Unknown",
-            patient_age=appt.patient.age if appt.patient else None
+            patient_name=appt.patient.name if (appt.patient and is_admin) else "Patient" if appt.patient else "Unknown",
+            patient_age=appt.patient.age if (appt.patient and is_admin) else None
         )
         
         if appt.state == "hold":
@@ -148,11 +148,9 @@ async def get_queue(
 async def get_queue_status(
     doctor_id: UUID,
     date: date,
-    current_user: User = Depends(get_current_user),
+    current_user: User | object = Depends(get_current_user_or_patient),
     service: AppointmentService = Depends(get_appointment_service)
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     status = await service.get_queue_status(doctor_id, date)
     return QueueStatusResponse(**status)
