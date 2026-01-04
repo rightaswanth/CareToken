@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, cast, Time
 from uuid import UUID
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from fastapi import HTTPException
 
 from app.db.models.appointment import Appointment
