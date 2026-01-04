@@ -13,16 +13,18 @@ class AppointmentService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_patient_by_phone(self, phone: str, tenant_id: UUID) -> Patient | None:
+    async def get_existing_patient(self, phone: str, name: str, age: int, tenant_id: UUID) -> Patient | None:
         stmt = select(Patient).where(
             Patient.phone == phone,
+            func.lower(Patient.name) == name.lower(),
+            Patient.age == age,
             Patient.tenant_id == tenant_id
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
     async def create_or_get_patient(self, patient_data: PatientCreate, tenant_id: UUID) -> Patient:
-        patient = await self.get_patient_by_phone(patient_data.phone, tenant_id)
+        patient = await self.get_existing_patient(patient_data.phone, patient_data.name, patient_data.age, tenant_id)
         if not patient:
             patient = Patient(
                 tenant_id=tenant_id,

@@ -29,25 +29,27 @@ async def verify_otp(
 
 @router.get("/recent", response_model=PatientListResponse)
 async def get_recent_patients(
+    page: int = 1,
     limit: int = 10,
-    offset: int = 0,
     current_user: User = Depends(get_current_user),
     service: PatientService = Depends(get_patient_service)
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
+    offset = (page - 1) * limit
     return await service.get_recent_patients(limit, offset)
 
 @router.get("/", response_model=PatientListResponse)
 async def get_all_patients(
     search: Optional[str] = None,
+    page: int = 1,
     limit: int = 10,
-    offset: int = 0,
     current_user: User = Depends(get_current_user),
     service: PatientService = Depends(get_patient_service)
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
+    offset = (page - 1) * limit
     return await service.get_all_patients(search, limit, offset)
 
 @router.get("/appointments/active", response_model=list[dict])
