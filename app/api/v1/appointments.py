@@ -99,7 +99,7 @@ async def get_queue(
     doctor_id: UUID,
     date: date,
     status: Optional[List[str]] = Query(None),
-    status: Optional[List[str]] = Query(None),
+
     current_user: User | object = Depends(get_current_user_or_patient),
     service: AppointmentService = Depends(get_appointment_service)
 ):
