@@ -163,12 +163,16 @@ class PatientService:
         
         # 2. Find active appointments
         active_states = ["created", "waiting", "consulting", "hold"]
+        # Filter for current date and future
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
         stmt = select(Appointment).options(
             selectinload(Appointment.doctor),
             selectinload(Appointment.patient)
         ).where(
             Appointment.patient_id.in_(patient_ids),
-            Appointment.state.in_(active_states)
+            Appointment.state.in_(active_states),
+            Appointment.scheduled_start >= today_start
         ).order_by(Appointment.scheduled_start.asc())
         
         result = await self.session.execute(stmt)
