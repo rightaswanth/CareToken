@@ -14,11 +14,9 @@ class AdminCredentials(BaseModel):
     password: str
 
 class ClinicCreatedResponse(BaseModel):
-    id: UUID
-    name: str
-    city: str
-    admin_email: str
-    admin_password: str
+    tenant_id: UUID
+    clinic: "ClinicResponse"
+    admin_credentials: "AdminCredentials"
 
 class AdminCreatedResponse(BaseModel):
     id: UUID
@@ -28,6 +26,7 @@ class AdminCreatedResponse(BaseModel):
 class ClinicResponse(BaseModel):
     id: UUID
     name: str
+    slug: str
     city: str
     address: Optional[str] = None
     phone: Optional[str] = None

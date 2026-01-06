@@ -164,3 +164,16 @@ async def read_appointment(
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return await construct_response(appointment, service)
+
+@router.get("/token/details", response_model=dict)
+async def get_token_details(
+    doctor_id: UUID,
+    date: date,
+    token_number: int,
+    phone: str,
+    service: AppointmentService = Depends(get_appointment_service)
+):
+    details = await service.get_token_details(doctor_id, date, token_number, phone)
+    if not details:
+        raise HTTPException(status_code=404, detail="Token not found or details incorrect")
+    return details
