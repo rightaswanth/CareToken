@@ -407,3 +407,46 @@ class AppointmentService:
             })
             
         return response
+
+    async def get_token_details(self, doctor_id: UUID, date: date, token_number: int, phone: str) -> dict | None:
+        from sqlalchemy.orm import selectinload
+        # Join Appointment and Patient to filter by phone
+        stmt = select(Appointment).options(selectinload(Appointment.patient)).join(Patient).where(
+            Appointment.doctor_id == doctor_id,
+            func.date(Appointment.scheduled_start) == date,
+            Appointment.token_number == token_number,
+            Patient.phone == phone
+        )
+        
+        result = await self.session.execute(stmt)
+        appointment = result.scalars().first()
+        
+        if not appointment:
+            return None
+            
+        # Get queue status to find "current" token
+        queue_status = await self.get_queue_status(doctor_id, date)
+        current_token_str = queue_status.get("current_token")
+        
+        # Calculate estimated wait time
+        doctor = await self.session.get(Doctor, doctor_id)
+        wait_seconds = await self.calculate_wait_time(
+            doctor, 
+            date, 
+            token_number, 
+            appointment.is_emergency
+        )
+        
+        token_display = f"E{appointment.token_number}" if appointment.is_emergency else str(appointment.token_number)
+        
+        return {
+            "id": appointment.id,
+            "token_number": appointment.token_number,
+            "token_display": token_display,
+            "state": appointment.state,
+            "scheduled_start": appointment.scheduled_start,
+            "is_emergency": appointment.is_emergency,
+            "patient_name": appointment.patient.name,
+            "current_token": current_token_str,
+            "estimated_wait_seconds": wait_seconds
+        }
